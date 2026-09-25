@@ -494,6 +494,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     var local = readLocal();
     Object.keys(local).forEach(function (id) { if (local[id] && local[id].label) state.answers[id] = local[id].label; });
     if (SHEET_URL) {
+      // show the first open item right away; the sheet can take a few seconds to answer
+      jumpToFirstOpen();
+      renderCurrent();
+      saveNote.textContent = "loading your saved answers…";
       fetch(SHEET_URL + "?token=" + encodeURIComponent(SHEET_TOKEN) + "&annotator=" + encodeURIComponent(state.name))
         .then(function (r) { return r.json(); })
         .then(function (j) {
@@ -502,7 +506,11 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
           return flushPending().then(hideSaveWarning, showSheetWarning);
         })
         .catch(showSheetWarning)
-        .then(function () { jumpToFirstOpen(); renderCurrent(); });
+        .then(function () {
+          // move on only if the item on screen turned out to be answered already
+          if (state.answers[currentItem().item_id]) jumpToFirstOpen();
+          renderCurrent();
+        });
       return;
     }
     getDb().then(function (db) {
