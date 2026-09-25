@@ -130,6 +130,7 @@
     text-align: center;
   }
   .choice-btn:hover { transform: translateY(-1px); }
+  .choice-btn:disabled { opacity: 0.45; cursor: progress; transform: none; }
   .choice-btn:active { transform: translateY(0); }
   .choice-btn.legitimate.selected { background: var(--good-wash); border-color: var(--good); color: var(--good); }
   .choice-btn.annoying.selected { background: var(--bad-wash); border-color: var(--bad); color: var(--bad); }
@@ -497,6 +498,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
       // show the first open item right away; the sheet can take a few seconds to answer
       jumpToFirstOpen();
       renderCurrent();
+      // no labeling until saved answers are in, so items answered on another
+      // device are not shown (and re-answered) as new
+      state.loading = true;
+      choiceBtns.forEach(function (btn) { btn.disabled = true; });
       saveNote.textContent = "loading your saved answers…";
       fetch(SHEET_URL + "?token=" + encodeURIComponent(SHEET_TOKEN) + "&annotator=" + encodeURIComponent(state.name))
         .then(function (r) { return r.json(); })
@@ -507,6 +512,8 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
         })
         .catch(showSheetWarning)
         .then(function () {
+          state.loading = false;
+          choiceBtns.forEach(function (btn) { btn.disabled = false; });
           // move on only if the item on screen turned out to be answered already
           if (state.answers[currentItem().item_id]) jumpToFirstOpen();
           renderCurrent();
@@ -573,6 +580,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
   }
 
   function saveLabel(label) {
+    if (state.loading) return;
     var it = currentItem();
     state.answers[it.item_id] = label;
     choiceBtns.forEach(function (btn) {
