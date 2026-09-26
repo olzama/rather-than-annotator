@@ -383,6 +383,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
   // Items carry an optional "batch" (default 1). Each batch is ordered and
   // given hidden repeats on its own, and batches follow one another, so
   // adding a batch leaves the order and repeats of earlier batches unchanged.
+  // Annotators whose batch-1 repeats were the fixed copies in repeats.jsonl
+  // (labeled before per-annotator repeats existed) get no page repeats in batch 1.
+  var FIXED_REPEATS_BATCH1 = ["olga"];
+
   function batchedOrder(items, name) {
     var groups = {};
     items.forEach(function (it) {
@@ -392,7 +396,9 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     var out = [];
     Object.keys(groups).map(Number).sort(function (x, y) { return x - y; }).forEach(function (b) {
       var seed = b === 1 ? name : name + "|batch" + b;
-      out = out.concat(withRepeats(seededOrder(groups[b], seed), seed));
+      var ordered = seededOrder(groups[b], seed);
+      var fixed = b === 1 && FIXED_REPEATS_BATCH1.indexOf(name.trim().toLowerCase()) !== -1;
+      out = out.concat(fixed ? ordered : withRepeats(ordered, seed));
     });
     return out;
   }
