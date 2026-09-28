@@ -297,7 +297,13 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
   function flushPending() {
     var q = readPending();
     if (!q.length) return Promise.resolve();
-    return sheetPost(q).then(function () { writePending([]); });
+    // drop only the rows sent: answers given while the request was in
+    // flight stay queued
+    return sheetPost(q).then(function () {
+      var sent = {};
+      q.forEach(function (r) { sent[r.item_id + "@" + r.ts] = true; });
+      writePending(readPending().filter(function (r) { return !sent[r.item_id + "@" + r.ts]; }));
+    });
   }
   // Failed saves usually succeed on a retry within seconds, so the warning
   // appears only if saving is still failing after WARN_DELAY_MS.
@@ -496,23 +502,29 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     });
     return lines.join("\n");
   }
+  // Outside claude.ai (e.g. GitHub Pages) the browser's own download is used.
+  function browserDownload(filename, data) {
+    var url = URL.createObjectURL(new Blob([data], { type: "text/csv;charset=utf-8" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
   downloadBtn.addEventListener("click", function () {
-    if (!window.claude || !window.claude.use) {
-      alert("Downloads aren't available in this view.");
-      return;
-    }
     var n = poolAnsweredCount();
     if (n === 0) {
       alert("No answers yet to download.");
       return;
     }
+    var safeName = (state.name || "anon").replace(/[^a-zA-Z0-9_-]+/g, "-");
+    var filename = "rather_than_" + safeName + "_" + n + "answers.csv";
+    if (!window.claude || !window.claude.use) {
+      browserDownload(filename, buildCsv());
+      return;
+    }
     window.claude.use("downloads").then(function (downloads) {
-      if (!downloads) { alert("Downloads aren't available in this view."); return; }
-      var safeName = (state.name || "anon").replace(/[^a-zA-Z0-9_-]+/g, "-");
-      return downloads.save({
-        filename: "rather_than_" + safeName + "_" + n + "answers.csv",
-        data: buildCsv(),
-      });
+      if (!downloads) { browserDownload(filename, buildCsv()); return; }
+      return downloads.save({ filename: filename, data: buildCsv() });
     }).catch(function (e) {
       if (e && e.code === "declined") return;
       alert("Download failed: " + (e && e.message ? e.message : "unknown error"));
