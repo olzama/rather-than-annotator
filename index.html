@@ -299,7 +299,16 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     if (!q.length) return Promise.resolve();
     return sheetPost(q).then(function () { writePending([]); });
   }
+  // Failed saves usually succeed on a retry within seconds, so the warning
+  // appears only if saving is still failing after WARN_DELAY_MS.
+  var WARN_DELAY_MS = 30000, RETRY_MS = 5000;
+  var warnTimer = null, retryTimer = null;
+  function warnLater(show) {
+    if (!warnTimer) warnTimer = setTimeout(function () { warnTimer = null; show(); }, WARN_DELAY_MS);
+  }
   function hideSaveWarning() {
+    clearTimeout(warnTimer); warnTimer = null;
+    clearTimeout(retryTimer); retryTimer = null;
     saveFailing = false;
     document.getElementById("save-warning").hidden = true;
   }
@@ -307,6 +316,18 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     document.getElementById("save-warning-text").textContent =
       "The last answers could not reach the server. They are kept in this browser and will be sent automatically; keep going, or reload later.";
     document.getElementById("save-warning").hidden = false;
+  }
+  // Retry queued answers in the background until they go through.
+  function sheetFailed() {
+    warnLater(showSheetWarning);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      flushPending().then(function () {
+        if (saveNote.textContent === "queued, will retry") saveNote.textContent = "saved";
+        hideSaveWarning();
+      }, sheetFailed);
+    }, RETRY_MS);
   }
 
   function exportAnswers() {
@@ -531,9 +552,9 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
         .then(function (j) {
           if (!j || !j.answers) throw new Error("load failed");
           Object.keys(j.answers).forEach(function (id) { state.answers[id] = j.answers[id]; });
-          return flushPending().then(hideSaveWarning, showSheetWarning);
+          return flushPending().then(hideSaveWarning, sheetFailed);
         })
-        .catch(showSheetWarning)
+        .catch(sheetFailed)
         .then(function () {
           state.loading = false;
           choiceBtns.forEach(function (btn) { btn.disabled = false; });
@@ -621,7 +642,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
         hideSaveWarning();
       }, function () {
         saveNote.textContent = "queued, will retry";
-        showSheetWarning();
+        sheetFailed();
       });
     } else getDb().then(function (db) {
       if (!db) { showSaveWarning(); saveNote.textContent = localOk ? "saved in this browser only" : "not saved"; return; }
@@ -630,13 +651,14 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
         item_id: it.item_id, annotator: state.name, label: label, ts: Date.now()
       }).then(function () {
         saveNote.textContent = "saved";
+        hideSaveWarning();
         var total = state.order.length;
         var answeredCount = poolAnsweredCount();
         progressFill.style.width = Math.round((100 * answeredCount) / total) + "%";
         progressLabel.textContent = answeredCount + " / " + total;
       }).catch(function () {
         saveNote.textContent = "save failed — try again";
-        showSaveWarning();
+        warnLater(showSaveWarning);
       });
     });
 
