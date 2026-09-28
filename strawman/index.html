@@ -287,7 +287,7 @@
     var code = state.codes[ikey(it)];
     document.querySelectorAll(".choice").forEach(function (b) { b.classList.toggle("sel", b.dataset.code === code); });
     $("note-input").value = state.notes[ikey(it)] || "";
-    $("prev-btn").disabled = state.history.length === 0;
+    $("prev-btn").disabled = state.history.length === 0 && state.idx === 0;
     $("next-btn").disabled = state.idx >= list.length - 1;
     $("meta").textContent = it.item_id;
     $("save-note").textContent = "";
@@ -439,7 +439,10 @@
   $("note-input").addEventListener("blur", saveNoteOnly);
   $("prev-btn").addEventListener("click", function () {
     saveNoteOnly();
-    if (state.history.length) { state.idx = state.history.pop(); render(); }
+    // this visit's path first; after a reload, step back through the order
+    if (state.history.length) state.idx = state.history.pop();
+    else if (state.idx > 0) state.idx--;
+    render();
   });
   $("next-btn").addEventListener("click", function () {
     saveNoteOnly();

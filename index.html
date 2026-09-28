@@ -597,7 +597,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     progressFill.style.width = Math.round((100 * answeredCount) / total) + "%";
     progressLabel.textContent = answeredCount + " / " + total;
 
-    prevBtn.disabled = state.history.length === 0;
+    prevBtn.disabled = state.history.length === 0 && state.idx === 0;
     nextBtn.disabled = state.idx >= total - 1;
     saveNote.textContent = "";
   }
@@ -661,7 +661,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbz-5yyySdl6uyImVFs1Es
     btn.addEventListener("click", function () { saveLabel(btn.dataset.label); });
   });
   prevBtn.addEventListener("click", function () {
-    if (state.history.length) { state.idx = state.history.pop(); renderCurrent(); }
+    // this visit's path first; after a reload, step back through the order
+    if (state.history.length) state.idx = state.history.pop();
+    else if (state.idx > 0) state.idx--;
+    renderCurrent();
   });
   nextBtn.addEventListener("click", function () {
     if (state.idx < state.order.length - 1) { state.history.push(state.idx); state.idx++; renderCurrent(); }
