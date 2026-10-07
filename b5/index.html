@@ -382,7 +382,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
   // positions in the second half, to measure drift between early and late
   // judgments. A copy keeps the original's text and displayed id, and is
   // saved under "rep__<item_id>" so both labels are kept.
-  var REPEAT_N = 40, REPEAT_WINDOW = 100;
+  var REPEAT_N = 10, REPEAT_WINDOW = 100;
   function withRepeats(order, seedStr) {
     if (order.length < 2 * REPEAT_WINDOW) return order;
     var rnd = seedFromString(seedStr + "|repeats");
