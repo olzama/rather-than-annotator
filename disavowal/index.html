@@ -91,7 +91,9 @@
         <button class="choice" data-a="other">Other <kbd>4</kbd></button>
       </div>
       <div class="nav"><button id="prev">&larr; previous</button><span class="note" id="pos"></span><button id="next">next &rarr;</button></div>
+      <div class="nav"><button id="first">Go to first unanswered</button></div>
       <div class="note" id="save"></div>
+      <div class="note" id="who" hidden></div>
       <div class="warnbox" id="warn" hidden></div>
     </div>
     <div class="card done" id="done" hidden><p><b>All 80 passages answered. Thank you.</b> You can still go back and change any answer.</p><button id="back">Review answers</button></div>
@@ -112,6 +114,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
   nameInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && !start.disabled) start.click(); });
   try { var saved = localStorage.getItem("dv_name"); if (saved) { nameInput.value = saved; start.disabled = false; } } catch (e) {}
   start.addEventListener("click", function () { name = nameInput.value.trim(); try { localStorage.setItem("dv_name", name); } catch (e) {} el("gate").hidden = true; el("app").hidden = false; boot(); });
+  function firstOpen() { return ITEMS.findIndex(function (x) { return !answers[x.k]; }); }
+  function savedIdx() { try { var v = parseInt(localStorage.getItem("dv_idx_" + slug(name)), 10); return v >= 0 && v < ITEMS.length ? v : -1; } catch (e) { return -1; } }
+  var moved = false;
+  function go(i) { moved = true; idx = i; render(); }
   function count() { return ITEMS.filter(function (it) { return answers[it.k]; }).length; }
   function render() {
     var it = ITEMS[idx], parts = it.lines;
@@ -122,7 +128,8 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
     Array.prototype.forEach.call(document.querySelectorAll(".choice"), function (b) { b.classList.toggle("on", answers[it.k] === b.dataset.a); });
     el("pos").textContent = "passage " + (idx + 1) + " of " + ITEMS.length;
     var n = count(); el("status").textContent = n + " / " + ITEMS.length + " answered"; el("bar").style.width = (100 * n / ITEMS.length) + "%";
-    el("card").hidden = false; el("done").hidden = true;
+    el("card").hidden = false; el("done").hidden = true; el("first").disabled = firstOpen() < 0;
+    if (name) { try { localStorage.setItem("dv_idx_" + slug(name), String(idx)); } catch (e) {} }
   }
   // sheet backend: unsent answers are queued in this browser and retried
   function pkey() { return "dv_pending_" + slug(name); }
@@ -145,19 +152,20 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
       function () { el("save").textContent = "queued, will retry"; saveFailing = true; el("warn").hidden = false; el("warn").textContent = "The last answers could not reach the server. They are kept in this browser and sent automatically; keep going."; clearTimeout(retry); retry = setTimeout(function () { flush().then(function () { el("warn").hidden = true; el("save").textContent = "saved"; }, function () {}); }, 6000); });
   }
   function answer(a) {
-    var it = ITEMS[idx]; answers[it.k] = a; persist(it); render();
+    var it = ITEMS[idx], at = idx; moved = true;
+    answers[it.k] = a; persist(it); render();
     setTimeout(function () {
+      if (idx !== at) return;
       if (count() >= ITEMS.length) { el("card").hidden = true; el("done").hidden = false; return; }
-      var nxt = ITEMS.findIndex(function (x, i) { return i > idx && !answers[x.k]; });
-      if (nxt < 0) nxt = ITEMS.findIndex(function (x) { return !answers[x.k]; });
-      if (nxt >= 0) { idx = nxt; render(); }
+      if (idx < ITEMS.length - 1) { go(idx + 1); } else { var f = firstOpen(); if (f >= 0) go(f); }
     }, 180);
   }
   function boot() {
     Array.prototype.forEach.call(document.querySelectorAll(".choice"), function (b) { b.addEventListener("click", function () { answer(b.dataset.a); }); });
-    el("prev").addEventListener("click", function () { if (idx > 0) { idx--; render(); } });
-    el("next").addEventListener("click", function () { if (idx < ITEMS.length - 1) { idx++; render(); } });
-    el("back").addEventListener("click", function () { idx = 0; render(); });
+    el("prev").addEventListener("click", function () { if (idx > 0) go(idx - 1); });
+    el("next").addEventListener("click", function () { if (idx < ITEMS.length - 1) go(idx + 1); });
+    el("first").addEventListener("click", function () { var f = firstOpen(); if (f >= 0) go(f); });
+    el("back").addEventListener("click", function () { go(0); });
     document.addEventListener("keydown", function (e) {
       var map = { "1": "disavowal", "2": "approach_contrast", "3": "finding_contrast", "4": "other" };
       if (map[e.key]) answer(map[e.key]); else if (e.key === "ArrowLeft") el("prev").click(); else if (e.key === "ArrowRight") el("next").click();
@@ -168,7 +176,10 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
       var a = (j && j.answers) || {};
       ITEMS.forEach(function (it) { if (a[PREFIX + it.k]) answers[it.k] = a[PREFIX + it.k]; });
       el("save").textContent = ""; flush().catch(function () {});
-      var f = ITEMS.findIndex(function (x) { return !answers[x.k]; }); idx = f >= 0 ? f : 0; render();
+      var n0 = count();
+      if (n0 > 0) { var w = el("who"); w.hidden = false; w.textContent = n0 + " of " + ITEMS.length + " answers are already saved under the name \u201c" + name + "\u201d. If that is not you, "; var sw = document.createElement("button"); sw.textContent = "use a different name"; sw.addEventListener("click", function () { try { localStorage.removeItem("dv_name"); } catch (e) {} location.reload(); }); w.appendChild(sw); }
+      if (!moved) { var s0 = savedIdx(); idx = s0 >= 0 ? s0 : Math.max(firstOpen(), 0); }
+      render();
     }).catch(function () { el("save").textContent = "could not load earlier answers; new answers are still saved"; render(); });
     lsGet(pkey(), "[]").forEach(function (r) { var k = r.item_id.slice(PREFIX.length); if (!answers[k]) answers[k] = r.label; });
     render();
