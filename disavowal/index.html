@@ -55,6 +55,7 @@
   .gate button { text-align: center; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; padding: 12px 26px; }
   .gate button:disabled { opacity: .45; cursor: default; }
   .done { text-align: center; padding: 32px 20px; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -113,7 +114,7 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbxL1i1VBwmzsJeNTtMJfA
   nameInput.addEventListener("input", function () { start.disabled = !nameInput.value.trim(); });
   nameInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && !start.disabled) start.click(); });
   try { var saved = localStorage.getItem("dv_name"); if (saved) { nameInput.value = saved; start.disabled = false; } } catch (e) {}
-  start.addEventListener("click", function () { name = nameInput.value.trim(); try { localStorage.setItem("dv_name", name); } catch (e) {} el("gate").hidden = true; el("app").hidden = false; boot(); });
+  start.addEventListener("click", function () { if (name) return; name = nameInput.value.trim(); try { localStorage.setItem("dv_name", name); } catch (e) {} el("gate").hidden = true; el("app").hidden = false; boot(); });
   function firstOpen() { return ITEMS.findIndex(function (x) { return !answers[x.k]; }); }
   function savedIdx() { try { var v = parseInt(localStorage.getItem("dv_idx_" + slug(name)), 10); return v >= 0 && v < ITEMS.length ? v : -1; } catch (e) { return -1; } }
   var moved = false;
